@@ -36,10 +36,6 @@ func (b *Book) Validate() error {
 	b.Title = strings.TrimSpace(b.Title)
 	b.Author = strings.TrimSpace(b.Author)
 
-	trimmedStatus := strings.TrimSpace(string(b.Status))
-	lowercaseStatus := strings.ToLower(trimmedStatus)
-	status := BookStatus(lowercaseStatus)
-
 	if b.ID == "" {
 		return ErrMissingID
 	}
@@ -57,6 +53,13 @@ func (b *Book) Validate() error {
 	if b.Author == "" {
 		return ErrMissingAuthor
 	}
+
+	trimmedStatus := strings.TrimSpace(string(b.Status))
+	if trimmedStatus == "" {
+		return ErrEmptyStatus
+	}
+
+	status := BookStatus(strings.ToLower(trimmedStatus))
 
 	switch status {
 	case BookUnread, BookReading, BookComplete:

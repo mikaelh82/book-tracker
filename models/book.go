@@ -68,3 +68,15 @@ func (b *Book) Validate() error {
 
 	return nil
 }
+
+func (b *Book) GenerateID() error {
+	id, err := uuid.NewRandom()
+
+	if err != nil {
+		return fmt.Errorf("failed to generate id: %w", err)
+	}
+
+	b.ID = id.String()
+
+	return nil
+}

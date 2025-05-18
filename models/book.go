@@ -1,7 +1,16 @@
 package models
 
 import (
+	"errors"
 	"strings"
+)
+
+var (
+	ErrMissingID     = errors.New("id is mising")
+	ErrMissingTitle  = errors.New("title is missing")
+	ErrMissingAuthor = errors.New("author is missing")
+	ErrInvalidStatus = errors.New("invalid status: must be unread, reading or complete")
+	ErrEmptyStatus   = errors.New("status cannot be empty")
 )
 
 type BookStatus string
@@ -27,19 +36,24 @@ func (b *Book) Validate() error {
 	lowercaseStatus := strings.ToLower(trimmedStatus)
 	status := BookStatus(lowercaseStatus)
 
+	if b.ID == "" {
+		return ErrMissingID
+	}
+
 	if b.Title == "" {
-		//ERROR MISSING TITLE
+		return ErrMissingTitle
 	}
 
 	if b.Author == "" {
-		// ERROR MISSING AUTHOR
+		return ErrMissingAuthor
 	}
 
 	switch status {
 	case BookUnread, BookReading, BookComplete:
 		// ALL GOOD
+		b.Status = status
 	default:
-		// ERROR UNKNOWN STATUS
+		return ErrInvalidStatus
 	}
 
 	return nil

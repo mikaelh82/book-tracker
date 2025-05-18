@@ -29,6 +29,7 @@ PONG
 5. %v in error messages: Formats values in a default, human-readable way (e.g., t.Errorf("Validate() error = %v, want %v", err, tt.wantErr) shows error details clearly).
 6. %q for strings: Formats strings with quotes, escaping special characters (e.g., t.Errorf("Validate() Title = %q, want %q", tt.book.Title, got) ensures safe string output).
 7. %w for error wrapping: Wraps errors to preserve the original error while adding context (e.g., fmt.Errorf("%w: %s", ErrInvalidStatus, status) allows errors.Is to check the wrapped error).
+8. Quite confusing that you dont need to be explicit in saying that a struct implements an interface
 
 
 ## Major decisions and why i took them

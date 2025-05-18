@@ -2,15 +2,16 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
+	"time"
 )
 
 type Config struct {
 	PORT string
 }
 
-// factory function to generate Config
 func loadConfig() Config {
 	cfg := Config{PORT: "8080"}
 
@@ -22,15 +23,31 @@ func loadConfig() Config {
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "PONG")
+	fmt.Fprintln(w, "OK")
 }
 
 func main() {
 
 	var cfg Config = loadConfig()
-	fmt.Printf("Using port: %s", cfg.PORT)
+	log.Printf("Loaded config with PORT: %s", cfg.PORT)
 
-	http.HandleFunc("/ping", healthHandler)
-	http.ListenAndServe(":"+cfg.PORT, nil) // NOTE: Interesting. Go handles "" as a string and '' as a Rune
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/health", healthHandler)
+
+	srv := http.Server{
+		Addr:         ":" + cfg.PORT,
+		Handler:      mux,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  10 * time.Second,
+	}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil {
+			log.Fatalf("Server error: %s", err)
+		}
+	}()
+
+	select {} // TODO: Lets block the main thread for now. later graceful shutdown
 
 }

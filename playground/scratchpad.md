@@ -13,6 +13,7 @@
 ## Random thoughts
 
 1. [X] It was more easier than i expected with the webserver. Really smoooth. Result below:
+2. [X] Testing was initially very confusing but once you understood the concept by reading `https://pkg.go.dev/testing` it became much more clear.
 
 ```bash
 curl http://localhost:8080/ping
@@ -24,10 +25,14 @@ PONG
 2. Need to have dependency to read from `.env`files. Something similar to `dotenv`. Lets not add that now and instead pass them into via `bash`
 3. `ListenAndServe()`is blocking so this needs to be wrapped in a go routine. Seen this similar pattern as IFFE functions as in ts/js
 4. There is also a `ListenAndServeTLS`function that needs to be used if you deploy so it can handle https
+5. %v in error messages: Formats values in a default, human-readable way (e.g., t.Errorf("Validate() error = %v, want %v", err, tt.wantErr) shows error details clearly).
+6. %q for strings: Formats strings with quotes, escaping special characters (e.g., t.Errorf("Validate() Title = %q, want %q", tt.book.Title, got) ensures safe string output).
+7. %w for error wrapping: Wraps errors to preserve the original error while adding context (e.g., fmt.Errorf("%w: %s", ErrInvalidStatus, status) allows errors.Is to check the wrapped error).
 
 
 ## Major decisions and why i took them
 
 1. [ ] Lets try to implement all additional features - Christian mentioned **atleast 1** but lets be ambitious
 2. [X] Implement small webserver just to get something up and running and take it from there
-3. [ ] Will use custom multiplexer to avoid global state issues as well as organize routes modularly for scalability, and enable middleware like logging, metrics and ofcourse CORS in deployment
+3. [X] Will use custom multiplexer to avoid global state issues as well as organize routes modularly for scalability, and enable middleware like logging, metrics and ofcourse CORS in deployment
+4. [ ] As Book datastructure very simple. I choose not to add any regex checks or any third party validation libraries like typescripts Zod (but for go). Handled mostly with strings.TrimParse(). Can also later add validation to the frontend to be extra secure.

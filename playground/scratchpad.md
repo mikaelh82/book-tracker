@@ -50,6 +50,7 @@ func (s *bookStore) GetBook(ctx context.Context, id string) (*models.Book, error
 }
 ```
 
+10. The DuckDB driver (github.com/marcboeker/go-duckdb) threw a "Duplicate key" error on the id column in UpdateBook during UPDATE, even though it shouldn't touch the primary key, probably because the driver got its error reporting mixed up. Swapping to SQLite (github.com/mattn/go-sqlite3) fixed it by handling errors properly, letting the UPDATE query run smoothly.
 
 ## Major decisions and why i took them
 
@@ -62,3 +63,4 @@ func (s *bookStore) GetBook(ctx context.Context, id string) (*models.Book, error
    2. Routes: Managed routing
    3. Services: Business logic
    4. Store: Data storage and retrieval
+6. [X] Major problem with DuckDB!!!!: The DuckDB driver (github.com/marcboeker/go-duckdb) threw a "Duplicate key" error on the id column in UpdateBook during UPDATE, even though it shouldn't touch the primary key, probably because the driver got its error reporting mixed up. Swapping to SQLite (github.com/mattn/go-sqlite3) fixed it by handling errors properly, letting the UPDATE query run smoothly.

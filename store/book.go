@@ -11,13 +11,12 @@ import (
 
 var (
 	ErrBookNotFound = errors.New("book not found")
-	// TODO: Add an error for books that already exists
 )
 
 type BookStore interface {
 	CreateBook(ctx context.Context, book *models.Book) error
-	GetBook(ctx context.Context, id string) (models.Book, error)
-	ListBooks(ctx context.Context, status string, limit, offset int, title, author string) ([]models.Book, error)
+	GetBook(ctx context.Context, id string) (*models.Book, error)
+	ListBooks(ctx context.Context, status string, limit, offset int, title, author string) ([]*models.Book, error)
 	UpdateBook(ctx context.Context, book *models.Book) error
 	DeleteBook(ctx context.Context, id string) error
 	CountBooks(ctx context.Context) (total int, byStatus map[string]int, err error)
@@ -34,35 +33,28 @@ func NewBookStore(db *sql.DB) BookStore {
 func (s *bookStore) CreateBook(ctx context.Context, book *models.Book) error {
 	// NOTE: Documentation: https://pkg.go.dev/database/sql#Conn.ExecContext
 	_, err := s.db.ExecContext(ctx, `
-	INSERT INTO books (id, title, author, status) VALUES (?, ?, ?, ?)`,
+        INSERT INTO books (id, title, author, status) VALUES (?, ?, ?, ?)`,
 		book.ID, book.Title, book.Author, book.Status)
-
-	// TODO: Could be more explicit here and add an error type if the book already exsists given that (title, author) is unique
-
 	if err != nil {
-		return fmt.Errorf("insert book: %w", err)
+		return fmt.Errorf("create book: %w", err)
 	}
-
 	return nil
 }
 
-func (s *bookStore) GetBook(ctx context.Context, id string) (models.Book, error) {
+func (s *bookStore) GetBook(ctx context.Context, id string) (*models.Book, error) {
 	// NOTE: Documentation: https://pkg.go.dev/database/sql#DB.QueryRowContext
 	var book models.Book
-
 	err := s.db.QueryRowContext(ctx, `
-	SELECT id, title, author, status
-	FROM books
-	WHERE id = ?`, id).Scan(&book.ID, &book.Title, &book.Author, &book.Status)
-
+        SELECT id, title, author, status
+        FROM books
+        WHERE id = ?`, id).Scan(&book.ID, &book.Title, &book.Author, &book.Status)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return models.Book{}, ErrBookNotFound
+			return nil, ErrBookNotFound
 		}
-		return models.Book{}, fmt.Errorf("get book: %w", err)
+		return nil, fmt.Errorf("get book: %w", err)
 	}
-
-	return book, nil
+	return &book, nil // Lets stress test Garbage Collector =)
 }
 
 // IMPORTANT:
@@ -70,10 +62,10 @@ func (s *bookStore) GetBook(ctx context.Context, id string) (models.Book, error)
 // all validations in the service layer so nothing dangerous will be injected into here
 // Also, in this case, i am careful not to bring in too many external libraries but this could be simplified
 // alot with a ORM like Prisma (or GORM of go in this case). But that also adds overhead
-func (s *bookStore) ListBooks(ctx context.Context, status string, limit, offset int, title, author string) ([]models.Book, error) {
+func (s *bookStore) ListBooks(ctx context.Context, status string, limit, offset int, title, author string) ([]*models.Book, error) {
 	// NOTE: Documentation: https://pkg.go.dev/database/sql#DB.QueryContext
 	query := "SELECT id, title, author, status FROM books"
-	var args []any // anti-pattern in typescript but no linter is screaming =)
+	args := []any{}
 	conditions := []string{}
 	if status != "" {
 		conditions = append(conditions, "status = ?")
@@ -97,15 +89,15 @@ func (s *bookStore) ListBooks(ctx context.Context, status string, limit, offset 
 	if err != nil {
 		return nil, fmt.Errorf("query books: %w", err)
 	}
-	defer rows.Close() // NOTE: Think function destructor - releases resources after/when function returns
+	defer rows.Close()
 
-	var books []models.Book
+	books := []*models.Book{}
 	for rows.Next() {
 		var book models.Book
 		if err := rows.Scan(&book.ID, &book.Title, &book.Author, &book.Status); err != nil {
 			return nil, fmt.Errorf("scan book: %w", err)
 		}
-		books = append(books, book)
+		books = append(books, &book) // Lets stress test Garbage Collector =)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("rows error: %w", err)
@@ -116,14 +108,13 @@ func (s *bookStore) ListBooks(ctx context.Context, status string, limit, offset 
 func (s *bookStore) UpdateBook(ctx context.Context, book *models.Book) error {
 	// NOTE: Documentation: https://pkg.go.dev/database/sql#DB.ExecContext
 	result, err := s.db.ExecContext(ctx, `
-		UPDATE books
-		SET title = ?, author = ?, status = ?
-		WHERE id = ?
-	`, book.Title, book.Author, book.Status, book.ID)
+        UPDATE books
+        SET title = ?, author = ?, status = ?
+        WHERE id = ?
+    `, book.Title, book.Author, book.Status, book.ID)
 	if err != nil {
 		return fmt.Errorf("update book: %w", err)
 	}
-
 	// NOTE: Documentation: https://pkg.go.dev/database/sql#Result
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
@@ -153,7 +144,6 @@ func (s *bookStore) DeleteBook(ctx context.Context, id string) error {
 
 func (s *bookStore) CountBooks(ctx context.Context) (total int, byStatus map[string]int, err error) {
 	// NOTE: Documentation: https://pkg.go.dev/database/sql#DB.QueryContext
-
 	// NOTE:
 	// var total int <--- Not possible (or already in-scope) as it somehow declares the variables in the function
 	// return declaration as in-scope variables?
@@ -178,6 +168,5 @@ func (s *bookStore) CountBooks(ctx context.Context) (total int, byStatus map[str
 	if err := rows.Err(); err != nil {
 		return total, byStatus, fmt.Errorf("rows error: %w", err)
 	}
-
 	return total, byStatus, nil
 }

@@ -4,16 +4,15 @@ import (
 	"database/sql"
 	"fmt"
 
-	_ "github.com/marcboeker/go-duckdb"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 const createBooksTable = `
-CREATE TABLE IF NOT EXIST books (
-	id TEXT PRIMARY KEY,
-	title TEXT NOT NULL,
-	author TEXT NOT NULL,
-	STATUS TEXT NOT NULL,
-	UNIQUE(title, author)
+CREATE TABLE IF NOT EXISTS books (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    author TEXT NOT NULL,
+    status TEXT NOT NULL
 )
 `
 
@@ -25,7 +24,7 @@ CREATE INDEX IF NOT EXISTS idx_status ON books (status)
 
 func NewDB(dbPath string) (*sql.DB, func(), error) {
 	// Documentation: https://duckdb.org/docs/stable/clients/go.html
-	db, err := sql.Open("duckdb", dbPath)
+	db, err := sql.Open("sqlite3", dbPath)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("open duckdb: %w", err)

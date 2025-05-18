@@ -3,10 +3,13 @@ package models
 import (
 	"errors"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 var (
 	ErrMissingID     = errors.New("id is mising")
+	ErrInvalidID     = errors.New("id is invalid")
 	ErrMissingTitle  = errors.New("title is missing")
 	ErrMissingAuthor = errors.New("author is missing")
 	ErrInvalidStatus = errors.New("invalid status: must be unread, reading or complete")
@@ -38,6 +41,12 @@ func (b *Book) Validate() error {
 
 	if b.ID == "" {
 		return ErrMissingID
+	}
+
+	if b.ID != "" {
+		if _, err := uuid.Parse(b.ID); err != nil {
+			return ErrInvalidID
+		}
 	}
 
 	if b.Title == "" {

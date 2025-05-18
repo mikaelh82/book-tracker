@@ -10,7 +10,7 @@ type Config struct {
 	PORT string
 }
 
-// Singleton for generate and load Config
+// factory function to generate Config
 func loadConfig() Config {
 	cfg := Config{PORT: "8080"}
 

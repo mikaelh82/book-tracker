@@ -50,11 +50,12 @@ func (s *statsStore) GetStats(ctx context.Context) (totalRead, readingProgress i
 		readingProgress = int((readingBooks / totalBooks) * 100)
 	}
 
+	// NOTE: added author ASC to ensure author name ordering when there are several authors that have same book count (debug from unit-tests)
 	err = s.db.QueryRowContext(ctx, `
 		SELECT author 
 		FROM books 
 		GROUP BY author 
-		ORDER BY COUNT(*) DESC 
+		ORDER BY COUNT(*) DESC, author ASC
 		LIMIT 1
 	`).Scan(&popularAuthor)
 	if err == sql.ErrNoRows {

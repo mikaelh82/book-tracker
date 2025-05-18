@@ -2,6 +2,7 @@ package models
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -62,7 +63,7 @@ func (b *Book) Validate() error {
 		// ALL GOOD
 		b.Status = status
 	default:
-		return ErrInvalidStatus
+		return fmt.Errorf("%w: %s", ErrInvalidStatus, status) // NOTE: %w is a Go feature. Wrapping an existing error
 	}
 
 	return nil

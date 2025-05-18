@@ -9,6 +9,7 @@
 5. [X] Add a factory pattern that generates a `Config`instance. Keep it in `main.go`for now. Later can move it somewhere else
 6. [ ] Probably will need a custom multiplexer for route organisation and middleware
 7. [X] Need to check the ListenAndServe() function if its blocking or not. Like do i need to wrap it inside a go-routine or can i just run it without go-routine?
+8. [X] I think the best way to separate out logic is to like seperate out like handling of http requests and responses, then the handling of the routes, another separation is like business logic. Also a seperation for data storage management. Maybe a little overkill for our minimnal application but i think maybe its good to show usually how i usually work in larger projects and how i like to structure my applications.
 
 ## Random thoughts
 
@@ -36,3 +37,8 @@ PONG
 2. [X] Implement small webserver just to get something up and running and take it from there
 3. [X] Will use custom multiplexer to avoid global state issues as well as organize routes modularly for scalability, and enable middleware like logging, metrics and ofcourse CORS in deployment
 4. [ ] As Book datastructure very simple. I choose not to add any regex checks or any third party validation libraries like typescripts Zod (but for go). Handled mostly with strings.TrimParse(). Can also later add validation to the frontend to be extra secure.
+5. [ ] For separation of concerns and for scalability. I'll modularize the applications in:
+   1. Handlers: Manages HTTP requests and responses
+   2. Routes: Managed routing
+   3. Services: Business logic
+   4. Store: Data storage and retrieval

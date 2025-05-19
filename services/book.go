@@ -18,7 +18,7 @@ type bookService struct {
 	store store.BookStore
 }
 
-func NewBookStore(store store.BookStore) BookService {
+func NewBookService(store store.BookStore) BookService {
 	return &bookService{store: store}
 }
 

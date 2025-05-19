@@ -1,0 +1,1065 @@
+<./App.vue>
+<script setup lang="ts">
+import { RouterLink, RouterView } from 'vue-router'
+import { useTheme } from './composables/useTheme'
+import { Sun, Moon } from 'lucide-vue-next'
+
+const { isDark, toggleTheme } = useTheme()
+</script>
+
+<template>
+  <div :class="['min-h-screen transition-colors', isDark ? 'bg-gray-900' : 'bg-gray-100']">
+    <header class="bg-white dark:bg-gray-800 shadow-md">
+      <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">Book Tracker</h1>
+        <div class="flex items-center space-x-4">
+          <RouterLink
+            to="/"
+            class="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-500 transition-colors text-lg"
+            active-class="text-blue-600 dark:text-blue-500 font-semibold"
+          >
+            Book Collection
+          </RouterLink>
+          <RouterLink
+            to="/stats"
+            class="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-500 transition-colors text-lg"
+            active-class="text-blue-600 dark:text-blue-500 font-semibold"
+          >
+            Statistics
+          </RouterLink>
+          <button
+            @click="toggleTheme"
+            class="p-2 bg-gray-200 dark:bg-gray-700 rounded-full transition-colors hover:bg-gray-300 dark:hover:bg-gray-600"
+            aria-label="Toggle theme"
+          >
+            <Sun v-if="!isDark" class="w-5 h-5 text-yellow-500" />
+            <Moon v-else class="w-5 h-5 text-gray-300" />
+          </button>
+        </div>
+      </div>
+    </header>
+    <main class="pb-10">
+      <RouterView v-slot="{ Component }">
+        <transition name="fade" mode="out-in">
+          <component :is="Component" />
+        </transition>
+      </RouterView>
+    </main>
+  </div>
+</template>
+
+<style>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style></./App.vue>
+
+<./components/BookList.vue>
+<script setup lang="ts">
+import { computed } from 'vue'
+import BookCard from './BookCard.vue'
+import SearchBar from './SearchBar.vue'
+import Filters from './Filters.vue'
+import { useBooksStore } from '../stores/books'
+import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import type { Book } from '../types/book'
+
+// Incoming props with defaults
+const props = defineProps<{
+  search: string
+  statuses: string[]
+  sort: 'asc' | 'desc'
+}>()
+
+// Emit events back up
+const emit = defineEmits<{
+  (e: 'update:search', value: string): void
+  (e: 'update:statuses', value: string[]): void
+  (e: 'update:sort', value: 'asc' | 'desc'): void
+  (e: 'update-book', book: Book): void
+  (e: 'delete-book', id: number): void
+}>()
+
+const store = useBooksStore()
+
+// Pagination state
+const currentPage = computed(() => Math.floor(store.offset / store.limit) + 1)
+const totalPages = computed(() => Math.ceil(store.totalBooks / store.limit))
+
+// Create an array of page numbers to display, showing at most 5 pages
+const pageNumbers = computed(() => {
+  const pages: number[] = []
+  const maxToShow = 5
+  
+  // If few pages, show all
+  if (totalPages.value <= maxToShow) {
+    for (let i = 1; i <= totalPages.value; i++) {
+      pages.push(i)
+    }
+    return pages
+  }
+  
+  // Otherwise show a window around current page
+  let start = Math.max(1, currentPage.value - Math.floor(maxToShow / 2))
+  let end = start + maxToShow - 1
+  
+  // Adjust if we're near the end
+  if (end > totalPages.value) {
+    end = totalPages.value
+    start = Math.max(1, end - maxToShow + 1)
+  }
+  
+  for (let i = start; i <= end; i++) {
+    pages.push(i)
+  }
+  
+  return pages
+})
+
+function goToPage(page: number) {
+  if (page >= 1 && page <= totalPages.value) {
+    store.goToPage(page)
+  }
+}
+
+function handleUpdateBook(book: Book) {
+  store.updateBook(book)
+  emit('update-book', book)
+}
+
+function handleDeleteBook(id: number) {
+  store.deleteBook(id)
+  emit('delete-book', id)
+}
+
+function resetFilters() {
+  emit('update:search', '')
+  emit('update:statuses', [])
+  emit('update:sort', 'asc')
+  store.resetFilters()
+}
+</script>
+
+<template>
+  <div>
+    <!-- Top Bar: Search + Filters -->
+    <div class="flex flex-col sm:flex-row gap-4 mb-6">
+      <div class="flex-1">
+        <SearchBar
+          :model-value="search"
+          @update:model-value="val => emit('update:search', val)"
+          class="w-full sm:max-w-md"
+        />
+      </div>
+      <div class="flex flex-col sm:flex-row gap-3">
+        <Filters
+          :statuses="statuses"
+          :sort="sort"
+          @update:statuses="val => emit('update:statuses', val)"
+          @update:sort="val => emit('update:sort', val)"
+        />
+        <button 
+          @click="resetFilters"
+          class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          :class="{ 'opacity-50 cursor-not-allowed': !search && !statuses.length && sort === 'asc' }"
+          :disabled="!search && !statuses.length && sort === 'asc'"
+        >
+          Reset
+        </button>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div v-if="store.loading" class="flex justify-center items-center py-12">
+      <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+      <span class="ml-3 text-gray-600 dark:text-gray-300 text-lg">Loading...</span>
+    </div>
+
+    <!-- Error State -->
+    <div
+      v-else-if="store.error"
+      class="text-center p-8 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-xl shadow"
+    >
+      <div class="mb-3 font-semibold text-lg">Error</div>
+      <p>{{ store.error }}</p>
+      <button 
+        @click="store.fetchBooks()" 
+        class="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition"
+      >
+        Try Again
+      </button>
+    </div>
+
+    <!-- Empty State -->
+    <div
+      v-else-if="!store.books.length"
+      class="text-center p-12 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-xl shadow-sm"
+    >
+      <div class="text-xl mb-2">No books found</div>
+      <p v-if="search || statuses.length || sort !== 'asc'" class="text-sm text-gray-500">
+        Try adjusting your filters
+      </p>
+    </div>
+
+    <!-- Book Grid -->
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <BookCard
+        v-for="book in store.books"
+        :key="book.id"
+        :book="book"
+        @update-book="handleUpdateBook"
+        @delete-book="handleDeleteBook"
+      />
+    </div>
+
+    <!-- Pagination Controls -->
+    <div v-if="store.books.length && totalPages > 1" class="mt-8 flex justify-center">
+      <nav class="flex items-center gap-1 bg-white dark:bg-gray-800 shadow-sm rounded-lg p-2">
+        <button
+          :disabled="currentPage === 1"
+          @click="store.prevPage(); store.fetchBooks()"
+          class="p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          aria-label="Previous page"
+        >
+          <ChevronLeft class="w-5 h-5" />
+        </button>
+
+        <button
+          v-if="pageNumbers[0] > 1"
+          @click="goToPage(1)"
+          class="px-3 py-1 rounded-md text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+        >
+          1
+        </button>
+
+        <span v-if="pageNumbers[0] > 2" class="text-gray-500 dark:text-gray-400">...</span>
+
+        <button
+          v-for="page in pageNumbers"
+          :key="page"
+          @click="goToPage(page)"
+          :class="[
+            'px-3 py-1 rounded-md text-sm font-medium transition-colors',
+            currentPage === page
+              ? 'bg-blue-600 text-white'
+              : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+          ]"
+        >
+          {{ page }}
+        </button>
+
+        <span v-if="pageNumbers[pageNumbers.length - 1] < totalPages - 1" class="text-gray-500 dark:text-gray-400">...</span>
+
+        <button
+          v-if="pageNumbers[pageNumbers.length - 1] < totalPages"
+          @click="goToPage(totalPages)"
+          class="px-3 py-1 rounded-md text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+        >
+          {{ totalPages }}
+        </button>
+
+        <button
+          :disabled="currentPage === totalPages"
+          @click="store.nextPage(); store.fetchBooks()"
+          class="p-2 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          aria-label="Next page"
+        >
+          <ChevronRight class="w-5 h-5" />
+        </button>
+      </nav>
+    </div>
+    
+    <!-- Results Summary -->
+    <div v-if="store.totalBooks > 0" class="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
+      Showing {{ store.offset + 1 }}-{{ Math.min(store.offset + store.limit, store.totalBooks) }} of {{ store.totalBooks }} books
+    </div>
+  </div>
+</template></./components/BookList.vue>
+
+<./components/Filters.vue>
+<script setup lang="ts">
+// Props definition
+defineProps<{
+  statuses: string[]
+  sort: 'asc' | 'desc'
+}>()
+
+// Emit events definition
+defineEmits<{
+  (e: 'update:statuses', value: string[]): void
+  (e: 'update:sort', value: 'asc' | 'desc'): void
+}>()
+
+// Available status options
+const statusOptions = [
+  { value: 'unread', label: 'Unread' },
+  { value: 'reading', label: 'Reading' },
+  { value: 'complete', label: 'Complete' }
+]
+
+// Sort options
+const sortOptions = [
+  { value: 'asc', label: 'Title A-Z' },
+  { value: 'desc', label: 'Title Z-A' }
+]
+</script>
+
+<template>
+  <div class="flex flex-col sm:flex-row gap-3">
+    <!-- Status Filter -->
+    <div class="flex flex-wrap gap-2 bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+      <div 
+        v-for="option in statusOptions" 
+        :key="option.value"
+        class="flex items-center"
+      >
+        <input
+          type="checkbox"
+          :id="`status-${option.value}`"
+          :value="option.value"
+          :checked="statuses.includes(option.value)"
+          @change="
+            $emit(
+              'update:statuses',
+              $event.target.checked
+                ? [...statuses, option.value]
+                : statuses.filter(s => s !== option.value)
+            )
+          "
+          class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 dark:bg-gray-700"
+        />
+        <label :for="`status-${option.value}`" class="ml-2 text-sm text-gray-700 dark:text-gray-300 capitalize">
+          {{ option.label }}
+        </label>
+      </div>
+    </div>
+    
+    <!-- Sort Selector -->
+    <select
+      :value="sort"
+      @change="$emit('update:sort', ($event.target as HTMLSelectElement).value as 'asc' | 'desc')"
+      class="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 dark:text-gray-200 transition-colors"
+      aria-label="Sort order"
+    >
+      <option v-for="option in sortOptions" :key="option.value" :value="option.value">
+        {{ option.label }}
+      </option>
+    </select>
+  </div>
+</template></./components/Filters.vue>
+
+<./components/BookCard.vue>
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import type { Book } from '../types/book'
+
+const props = defineProps<{
+  book: Book
+}>()
+
+const emit = defineEmits<{
+  (e: 'delete-book', id: number): void
+  (e: 'update-book', book: Book): void
+}>()
+
+const isEditing = ref(false)
+const editedBook = ref({ ...props.book })
+
+function startEditing() {
+  // Reset to original values when starting to edit
+  editedBook.value = { ...props.book }
+  isEditing.value = true
+}
+
+function cancelEditing() {
+  isEditing.value = false
+}
+
+function saveChanges() {
+  emit('update-book', { ...editedBook.value })
+  isEditing.value = false
+}
+
+function deleteBook() {
+  if (confirm(`Are you sure you want to delete "${props.book.title}"?`)) {
+    emit('delete-book', props.book.id)
+  }
+}
+
+// Determine the status badge color
+const statusColor = computed(() => {
+  switch (props.book.status) {
+    case 'reading':
+      return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800/30 dark:text-yellow-300'
+    case 'complete':
+      return 'bg-green-100 text-green-800 dark:bg-green-800/30 dark:text-green-300'
+    default:
+      return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+  }
+})
+</script>
+
+<template>
+  <div
+    class="bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 border border-gray-100 dark:border-gray-700 h-full flex flex-col"
+  >
+    <div class="p-6 flex-1" :class="{ 'bg-blue-50/50 dark:bg-blue-900/10': isEditing }">
+      <div v-if="isEditing" class="space-y-4">
+        <!-- Edit Form -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Title
+          </label>
+          <input
+            v-model="editedBook.title"
+            type="text"
+            class="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 dark:text-gray-200 transition-colors"
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Author
+          </label>
+          <input
+            v-model="editedBook.author"
+            type="text"
+            class="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 dark:text-gray-200 transition-colors"
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Status
+          </label>
+          <select
+            v-model="editedBook.status"
+            class="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 dark:text-gray-200 transition-colors"
+          >
+            <option value="unread">Unread</option>
+            <option value="reading">Reading</option>
+            <option value="complete">Complete</option>
+          </select>
+        </div>
+      </div>
+
+      <div v-else class="space-y-2">
+        <!-- Display Mode -->
+        <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-100 line-clamp-2">
+          {{ book.title }}
+        </h2>
+        <p class="text-gray-600 dark:text-gray-400 line-clamp-1">
+          {{ book.author }}
+        </p>
+        <span :class="['px-2 py-1 rounded-md text-xs font-medium inline-block capitalize', statusColor]">
+          {{ book.status }}
+        </span>
+      </div>
+    </div>
+    
+    <div class="px-6 py-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 rounded-b-xl">
+      <div v-if="isEditing" class="flex gap-2">
+        <button
+          @click="saveChanges"
+          class="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition"
+        >
+          Save
+        </button>
+        <button
+          @click="cancelEditing"
+          class="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg transition"
+        >
+          Cancel
+        </button>
+      </div>
+
+      <div v-else class="flex gap-2">
+        <button
+          @click="startEditing"
+          class="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition"
+        >
+          Edit
+        </button>
+        <button
+          @click="deleteBook"
+          class="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg transition"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+</template></./components/BookCard.vue>
+
+<./components/SearchBar.vue>
+<script setup lang="ts">
+defineProps<{
+  modelValue: string
+}>()
+
+defineEmits<{
+  (e: 'update:modelValue', value: string): void
+}>()
+</script>
+
+<template>
+  <div class="relative">
+    <input
+      type="text"
+      :value="modelValue"
+      @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value)"
+      placeholder="Search books by title or author..."
+      class="w-full px-4 py-3 pl-10 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 transition-colors"
+    />
+    <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+      <svg 
+        xmlns="http://www.w3.org/2000/svg" 
+        class="h-5 w-5 text-gray-400"
+        viewBox="0 0 24 24" 
+        fill="none" 
+        stroke="currentColor" 
+        stroke-width="2" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"
+      >
+        <circle cx="11" cy="11" r="8"></circle>
+        <path d="m21 21-4.35-4.35"></path>
+      </svg>
+    </div>
+  </div>
+</template></./components/SearchBar.vue>
+
+<./views/BookListView.vue>
+<script setup lang="ts">
+import { ref, watch, onMounted, computed } from 'vue'
+import { useBooksStore } from '../stores/books'
+import BookList from '../components/BookList.vue'
+import { PlusCircle, X } from 'lucide-vue-next'
+import type { Book, BookFormData } from '../types/book'
+
+const store = useBooksStore()
+
+// Local refs to bind UI controls
+const search = ref('')
+const statuses = ref<string[]>([])
+const sort = ref<'asc' | 'desc'>('asc')
+
+// New book form state
+const showAddForm = ref(false)
+const newBook = ref<BookFormData>({
+  title: '',
+  author: '',
+  status: 'unread',
+})
+const isSubmitting = ref(false)
+const formError = ref<string | null>(null)
+
+// Form validation
+const isFormValid = computed(() => 
+  newBook.value.title.trim() !== '' && 
+  newBook.value.author.trim() !== ''
+)
+
+// Initialize fetch on mount
+onMounted(() => {
+  store.fetchBooks()
+})
+
+// Watch local controls and update store
+watch([search, statuses, sort], () => {
+  store.search = search.value
+  store.statuses = statuses.value
+  store.sort = sort.value
+  
+  // Reset to first page when filters change
+  store.offset = 0
+  store.fetchBooks()
+}, { debounce: 300 })
+
+async function addBook() {
+  if (!isFormValid.value) {
+    formError.value = 'Please fill in all required fields'
+    return
+  }
+  
+  formError.value = null
+  isSubmitting.value = true
+  
+  try {
+    await store.addBook({
+      title: newBook.value.title.trim(),
+      author: newBook.value.author.trim(),
+      status: newBook.value.status
+    })
+    
+    // Reset form on success
+    newBook.value = { title: '', author: '', status: 'unread' }
+    showAddForm.value = false
+  } catch (err) {
+    formError.value = 'Failed to add book. Please try again.'
+    console.error('Add book error:', err)
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+function handleUpdateBook(book: Book) {
+  store.updateBook(book)
+}
+
+function handleDeleteBook(id: number) {
+  store.deleteBook(id)
+}
+
+function toggleAddForm() {
+  showAddForm.value = !showAddForm.value
+  if (showAddForm.value) {
+    // Reset form when opening
+    newBook.value = { title: '', author: '', status: 'unread' }
+    formError.value = null
+  }
+}
+</script>
+
+<template>
+  <div class="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
+    <div class="flex justify-between items-center mb-6">
+      <h1 class="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
+        My Book Collection
+      </h1>
+      <button
+        @click="toggleAddForm"
+        class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+      >
+        <PlusCircle v-if="!showAddForm" class="mr-2 h-5 w-5" />
+        <X v-else class="mr-2 h-5 w-5" />
+        {{ showAddForm ? 'Cancel' : 'Add Book' }}
+      </button>
+    </div>
+
+    <!-- Add Book Form -->
+    <div
+      v-if="showAddForm"
+      class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 mb-8 border border-blue-100 dark:border-blue-900/30"
+    >
+      <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
+        Add New Book
+      </h2>
+      
+      <div v-if="formError" class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm">
+        {{ formError }}
+      </div>
+      
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div>
+          <label for="book-title" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Title <span class="text-red-500">*</span>
+          </label>
+          <input
+            id="book-title"
+            v-model.trim="newBook.title"
+            type="text"
+            placeholder="Enter book title"
+            class="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 dark:text-gray-200 transition-colors"
+            :class="{ 'border-red-500 dark:border-red-500': formError && !newBook.title }"
+          />
+        </div>
+        <div>
+          <label for="book-author" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Author <span class="text-red-500">*</span>
+          </label>
+          <input
+            id="book-author"
+            v-model.trim="newBook.author"
+            type="text"
+            placeholder="Enter author name"
+            class="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 dark:text-gray-200 transition-colors"
+            :class="{ 'border-red-500 dark:border-red-500': formError && !newBook.author }"
+          />
+        </div>
+        <div>
+          <label for="book-status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Status
+          </label>
+          <select
+            id="book-status"
+            v-model="newBook.status"
+            class="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 dark:text-gray-200 transition-colors"
+          >
+            <option value="unread">Unread</option>
+            <option value="reading">Reading</option>
+            <option value="complete">Complete</option>
+          </select>
+        </div>
+      </div>
+      <div class="mt-4 flex justify-end">
+        <button
+          @click="addBook"
+          :disabled="isSubmitting || !isFormValid"
+          class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span v-if="isSubmitting">
+            <span class="inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
+            Adding...
+          </span>
+          <span v-else>Add Book</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Book List Component -->
+    <BookList
+      :search="search"
+      :statuses="statuses"
+      :sort="sort"
+      @update:search="search = $event"
+      @update:statuses="statuses = $event"
+      @update:sort="sort = $event"
+      @update-book="handleUpdateBook"
+      @delete-book="handleDeleteBook"
+    />
+  </div>
+</template></./views/BookListView.vue>
+
+<./views/StatisticsView.vue>
+<script setup lang="ts">
+import { ref, onMounted, reactive, watch } from 'vue'
+import { LineChart, BarChart, RefreshCw } from 'lucide-vue-next'
+import axios from 'axios'
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+
+interface Stats {
+  totalBooks: number
+  totalRead: number
+  readingProgress: number
+  popularAuthor: string
+  statusDistribution: {
+    unread: number
+    reading: number
+    complete: number
+  }
+  recentlyAdded: Array<{
+    id: number
+    title: string
+    author: string
+    status: string
+  }>
+}
+
+const stats = ref<Stats | null>(null)
+const loading = ref(false)
+const error = ref<string | null>(null)
+const activeChartType = ref<'bar' | 'pie'>('bar')
+
+async function fetchStats() {
+  loading.value = true
+  error.value = null
+  
+  try {
+    const response = await axios.get<Stats>(`${API_BASE_URL}/api/v1/stats`)
+    stats.value = response.data
+  } catch (err) {
+    console.error('Error fetching stats:', err)
+    error.value = err instanceof Error 
+      ? err.message 
+      : 'Failed to fetch statistics. Please try again.'
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(fetchStats)
+
+// For the chart
+const chartData = reactive({
+  labels: ['Unread', 'Reading', 'Completed'],
+  datasets: [{
+    label: 'Books by Status',
+    data: [0, 0, 0],
+    backgroundColor: [
+      'rgba(96, 165, 250, 0.7)', // blue-400
+      'rgba(251, 191, 36, 0.7)', // yellow-400
+      'rgba(34, 197, 94, 0.7)'   // green-500
+    ],
+    borderColor: [
+      'rgb(59, 130, 246)', // blue-500
+      'rgb(234, 179, 8)',  // yellow-500
+      'rgb(22, 163, 74)'   // green-600
+    ],
+    borderWidth: 1
+  }]
+})
+
+// Update chart data when stats are loaded
+watch(() => stats.value, (newStats) => {
+  if (newStats) {
+    chartData.datasets[0].data = [
+      newStats.statusDistribution.unread,
+      newStats.statusDistribution.reading,
+      newStats.statusDistribution.complete
+    ]
+  }
+}, { immediate: true })
+</script>
+
+<template>
+  <div class="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
+    <div class="flex justify-between items-center mb-6">
+      <h1 class="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
+        Reading Statistics
+      </h1>
+      <button
+        @click="fetchStats"
+        class="inline-flex items-center px-3 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium rounded-lg transition-colors hover:bg-gray-300 dark:hover:bg-gray-600"
+        :disabled="loading"
+      >
+        <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': loading }" />
+        Refresh
+      </button>
+    </div>
+
+    <!-- Loading State -->
+    <div v-if="loading" class="flex justify-center items-center py-12">
+      <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+      <span class="ml-3 text-gray-600 dark:text-gray-300 text-lg">Loading statistics...</span>
+    </div>
+
+    <!-- Error State -->
+    <div
+      v-else-if="error"
+      class="text-center p-8 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-xl shadow mb-6"
+    >
+      <div class="mb-3 font-semibold text-lg">Error</div>
+      <p>{{ error }}</p>
+      <button 
+        @click="fetchStats" 
+        class="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition"
+      >
+        Try Again
+      </button>
+    </div>
+
+    <div v-else-if="stats" class="space-y-8">
+      <!-- Summary Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow">
+          <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2">
+            Total Books
+          </h2>
+          <p class="text-3xl font-bold text-blue-600 dark:text-blue-500">
+            {{ stats.totalBooks }}
+          </p>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow">
+          <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2">
+            Books Read
+          </h2>
+          <p class="text-3xl font-bold text-green-600 dark:text-green-500">
+            {{ stats.totalRead }}
+          </p>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow">
+          <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2">
+            Reading Progress
+          </h2>
+          <div class="flex items-end">
+            <p class="text-3xl font-bold text-yellow-500 dark:text-yellow-400">
+              {{ stats.readingProgress }}%
+            </p>
+            <div class="ml-4 flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+              <div 
+                class="bg-yellow-500 h-full rounded-full"
+                :style="`width: ${stats.readingProgress}%`"
+              ></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow">
+          <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2">
+            Most Read Author
+          </h2>
+          <p class="text-xl font-medium text-gray-700 dark:text-gray-300">
+            {{ stats.popularAuthor || 'None' }}
+          </p>
+        </div>
+      </div>
+
+      <!-- Chart -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">
+            Books by Status
+          </h2>
+          <div class="flex space-x-2">
+            <button 
+              @click="activeChartType = 'bar'" 
+              class="p-2 rounded-lg transition-colors"
+              :class="activeChartType === 'bar' 
+                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' 
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'"
+            >
+              <BarChart class="h-5 w-5" />
+            </button>
+            <button 
+              @click="activeChartType = 'pie'" 
+              class="p-2 rounded-lg transition-colors"
+              :class="activeChartType === 'pie' 
+                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' 
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'"
+            >
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M12 2a10 10 0 0 1 10 10"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+        
+        <div class="h-64 w-full">
+          <!-- Bar Chart Visualization (basic version) -->
+          <div v-if="activeChartType === 'bar'" class="flex h-full justify-center items-end">
+            <div v-for="(status, index) in ['unread', 'reading', 'complete']" :key="status" class="mx-6 flex flex-col items-center">
+              <div 
+                class="w-24 transition-all duration-500 ease-in-out rounded-t-lg"
+                :class="[
+                  index === 0 ? 'bg-blue-400 dark:bg-blue-500' : 
+                  index === 1 ? 'bg-yellow-400 dark:bg-yellow-500' : 
+                  'bg-green-400 dark:bg-green-500'
+                ]"
+                :style="`height: ${stats.totalBooks ? stats.statusDistribution[status] / stats.totalBooks * 100 * 2 : 0}px`"
+              ></div>
+              <div class="mt-2 text-sm font-medium text-gray-600 dark:text-gray-400 capitalize">
+                {{ status }}
+              </div>
+              <div class="text-sm font-bold text-gray-800 dark:text-gray-200">
+                {{ stats.statusDistribution[status] }}
+              </div>
+            </div>
+          </div>
+          
+          <!-- Pie Chart Visualization (basic version) -->
+          <div v-else class="flex h-full justify-center items-center">
+            <div class="relative w-48 h-48">
+              <!-- Simplified pie chart with colored segments -->
+              <svg viewBox="0 0 100 100" class="w-full h-full">
+                <!-- Calculate segment sizes based on book counts -->
+                <circle 
+                  v-if="stats.statusDistribution.unread > 0"
+                  cx="50" cy="50" r="40" 
+                  fill="transparent"
+                  stroke="rgb(59, 130, 246)" 
+                  stroke-width="20"
+                  :stroke-dasharray="`${stats.statusDistribution.unread / stats.totalBooks * 251.2} 251.2`"
+                  stroke-dashoffset="0"
+                  transform="rotate(-90 50 50)"
+                />
+                <circle 
+                  v-if="stats.statusDistribution.reading > 0"
+                  cx="50" cy="50" r="40" 
+                  fill="transparent"
+                  stroke="rgb(234, 179, 8)"
+                  stroke-width="20"
+                  :stroke-dasharray="`${stats.statusDistribution.reading / stats.totalBooks * 251.2} 251.2`"
+                  :stroke-dashoffset="-stats.statusDistribution.unread / stats.totalBooks * 251.2"
+                  transform="rotate(-90 50 50)"
+                />
+                <circle 
+                  v-if="stats.statusDistribution.complete > 0"
+                  cx="50" cy="50" r="40" 
+                  fill="transparent"
+                  stroke="rgb(22, 163, 74)"
+                  stroke-width="20"
+                  :stroke-dasharray="`${stats.statusDistribution.complete / stats.totalBooks * 251.2} 251.2`"
+                  :stroke-dashoffset="-((stats.statusDistribution.unread + stats.statusDistribution.reading) / stats.totalBooks * 251.2)"
+                  transform="rotate(-90 50 50)"
+                />
+              </svg>
+              
+              <!-- Show "No Data" if there are no books -->
+              <div v-if="stats.totalBooks === 0" class="absolute inset-0 flex items-center justify-center text-gray-500 dark:text-gray-400">
+                No Data
+              </div>
+            </div>
+            
+            <!-- Legend -->
+            <div class="ml-8 space-y-3">
+              <div v-for="(status, index) in ['unread', 'reading', 'complete']" :key="status" class="flex items-center">
+                <div 
+                  class="w-4 h-4 rounded-sm mr-2"
+                  :class="[
+                    index === 0 ? 'bg-blue-500' : 
+                    index === 1 ? 'bg-yellow-500' : 
+                    'bg-green-500'
+                  ]"
+                ></div>
+                <span class="text-sm font-medium text-gray-600 dark:text-gray-400 capitalize">
+                  {{ status }}: {{ stats.statusDistribution[status] }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Recently Added Books -->
+      <div v-if="stats.recentlyAdded?.length" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-100 dark:border-gray-700">
+        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
+          Recently Added Books
+        </h2>
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="border-b border-gray-200 dark:border-gray-700">
+                <th class="pb-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Title</th>
+                <th class="pb-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Author</th>
+                <th class="pb-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr 
+                v-for="book in stats.recentlyAdded" 
+                :key="book.id"
+                class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+              >
+                <td class="py-3 text-gray-800 dark:text-gray-300">{{ book.title }}</td>
+                <td class="py-3 text-gray-800 dark:text-gray-300">{{ book.author }}</td>
+                <td class="py-3">
+                  <span 
+                    class="px-2 py-1 rounded-md text-xs font-medium capitalize"
+                    :class="book.status === 'reading' 
+                      ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800/30 dark:text-yellow-300'
+                      : book.status === 'complete'
+                        ? 'bg-green-100 text-green-800 dark:bg-green-800/30 dark:text-green-300'
+                        : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'"
+                  >
+                    {{ book.status }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Empty State -->
+    <div 
+      v-else
+      class="text-center py-12 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-xl shadow-sm"
+    >
+      <div class="text-xl mb-2">No statistics available</div>
+      <p class="text-sm text-gray-500">
+        Add some books to your collection to see statistics
+      </p>
+    </div>
+  </div>
+</template></./views/StatisticsView.vue>
+

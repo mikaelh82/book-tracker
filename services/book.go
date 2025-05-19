@@ -23,10 +23,10 @@ func NewBookService(store store.BookStore) BookService {
 }
 
 func (s *bookService) CreateBook(ctx context.Context, book *models.Book) error {
-	if err := book.Validate(); err != nil {
+	if err := book.GenerateID(); err != nil {
 		return err
 	}
-	if err := book.GenerateID(); err != nil {
+	if err := book.Validate(); err != nil {
 		return err
 	}
 	return s.store.CreateBook(ctx, book)

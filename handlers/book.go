@@ -32,16 +32,14 @@ func writeError(w http.ResponseWriter, status int, err error) {
 
 func (h *BookHandler) CreateBook(w http.ResponseWriter, r *http.Request) {
 	var book models.Book
-	// bug here. Interesting. For Go to know how to decode a BookStatus (completed etc). it needs to implement a UnmarshalJSON data
-	// Documentation: https://dev.to/arshamalh/how-to-unmarshal-json-in-a-custom-way-in-golang-42m5
 	if err := json.NewDecoder(r.Body).Decode(&book); err != nil {
 		writeError(w, http.StatusBadRequest, fmt.Errorf("invalid request: %v", err))
 		return
 	}
 	if err := h.service.CreateBook(r.Context(), &book); err != nil {
-		if errors.Is(err, store.ErrBookNotFound) {
-			writeError(w, http.StatusConflict, err)
-		} else if errors.Is(err, models.ErrMissingTitle) || errors.Is(err, models.ErrMissingAuthor) || errors.Is(err, models.ErrInvalidStatus) {
+		if errors.Is(err, models.ErrMissingID) || errors.Is(err, models.ErrInvalidID) ||
+			errors.Is(err, models.ErrMissingTitle) || errors.Is(err, models.ErrMissingAuthor) ||
+			errors.Is(err, models.ErrInvalidStatus) || errors.Is(err, models.ErrEmptyStatus) {
 			writeError(w, http.StatusBadRequest, err)
 		} else {
 			writeError(w, http.StatusInternalServerError, fmt.Errorf("create book error: %v", err))
@@ -101,7 +99,8 @@ func (h *BookHandler) UpdateBook(w http.ResponseWriter, r *http.Request, id stri
 	if err := h.service.UpdateBook(r.Context(), &book); err != nil {
 		if errors.Is(err, store.ErrBookNotFound) {
 			writeError(w, http.StatusNotFound, err)
-		} else if errors.Is(err, models.ErrMissingTitle) || errors.Is(err, models.ErrMissingAuthor) || errors.Is(err, models.ErrInvalidStatus) {
+		} else if errors.Is(err, models.ErrMissingTitle) || errors.Is(err, models.ErrMissingAuthor) ||
+			errors.Is(err, models.ErrInvalidStatus) || errors.Is(err, models.ErrInvalidID) {
 			writeError(w, http.StatusBadRequest, err)
 		} else {
 			writeError(w, http.StatusInternalServerError, fmt.Errorf("update book error: %v", err))

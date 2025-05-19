@@ -10,7 +10,7 @@
 6. [ ] Probably will need a custom multiplexer for route organisation and middleware
 7. [X] Need to check the ListenAndServe() function if its blocking or not. Like do i need to wrap it inside a go-routine or can i just run it without go-routine?
 8. [X] I think the best way to separate out logic is to like seperate out like handling of http requests and responses, then the handling of the routes, another separation is like business logic. Also a seperation for data storage management. Maybe a little overkill for our minimnal application but i think maybe its good to show usually how i usually work in larger projects and how i like to structure my applications.
-9. [X] Added some middleware just to show that i am thinking about it. For a production app we need more like 1) auth 2) rate limiting 3) secure headers 4) request validation etc etc
+9. [X] Added some middleware just to show that i am thinking about it. For a production app we need more like 1) auth 2) rate limiting 3) secure headers 4) request validation etc etc 5) compression
 
 ## Random thoughts
 

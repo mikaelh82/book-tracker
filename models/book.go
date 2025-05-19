@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -30,6 +31,21 @@ type Book struct {
 	Title  string     `json:"title"`
 	Author string     `json:"author"`
 	Status BookStatus `json:"status"`
+}
+
+func (s *BookStatus) UnmarshalJSON(data []byte) error {
+	var str string
+	if err := json.Unmarshal(data, &str); err != nil {
+		return fmt.Errorf("invalid status: %w", err)
+	}
+	str = strings.ToLower(strings.TrimSpace(str))
+	switch BookStatus(str) {
+	case BookUnread, BookReading, BookComplete:
+		*s = BookStatus(str)
+		return nil
+	default:
+		return ErrInvalidStatus
+	}
 }
 
 func (b *Book) Validate() error {
